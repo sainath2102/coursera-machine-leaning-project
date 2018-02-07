@@ -1,0 +1,110 @@
+---
+title: "Human Activity Recognition"
+author: "Sainath Kovelamudi"
+date: "5 February 2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+#Introduction
+
+The Human Activity Recognition dataset used in this project is taken from this [website](http://web.archive.org/web/20161224072740/http:/groupware.les.inf.puc-rio.br/har). The dataset contains data from accelerometers on belt, forearm, arm and dumbell of 6 participants. They were asked to perform barbell lifts correctly and incorrectly in 5 different ways (A to E), where A corresponds to correct way of doing the exercise and the others are some common mistakes.  
+
+The aim of this project is to build a model to predict the manner in which they did the exercise. 
+
+#Data
+The training data is available to download from [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv)
+
+The test data is available to download from [here](https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv)
+
+```{r}
+library(caret)
+```
+
+#Getting and loading the data
+```{r,cache=TRUE}
+train_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+test_url <- "https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+train_data <- "./data/pml-training.csv"
+test_data <- "./data/pml-test.csv"
+
+if(!file.exists(train_data)){
+  dir.create("./data")
+  download.file(train_url, train_data, method="auto")
+}
+if(!file.exists(test_data)){
+  download.file(test_url, test_data, method="auto")
+}
+train_df <- read.csv(train_data,na.strings = c("","NA"))
+test_df <- read.csv(test_data,na.strings = c("","NA"))
+
+#head(train_df)
+dim(train_df)
+dim(test_df)
+```
+The "classe"" variable in the traning dataset is the way in which the exercise was done. It has values from A to E.
+
+Most of the variables have alot of NA's, so they are removed as they will not be useful in our prediction. Also, removing the variables in the first six columns as they clearly will not be helpful in the prediction.
+
+#Cleaning the data
+```{r,cache=TRUE}
+fullcols <- function(x) sum(is.na(x)) == 0
+train_cols <- sapply(train_df, fullcols)
+train_df <- train_df[,train_cols]
+#head(train_df)
+train_df <- train_df[,-(1:6)]
+dim(train_df)
+```
+
+#Building the model
+```{r,cache=TRUE}
+set.seed(123)
+partition <- createDataPartition(y=train_df$classe, p= 0.7, list = F)
+train1 <- train_df[partition,]
+train2 <- train_df[-partition,]
+```
+Trying to fit a model using random forest with 3-fold cross validation using trainControl.
+
+```{r, cache=TRUE}
+control <- trainControl(method="cv", number=3, verboseIter = F)
+
+rf_model <- train(classe ~ . , data=train1 , method = "rf", trControl=control)
+
+rf_model$finalModel
+```
+so the build model has a very low estimate of error rate.
+
+#Model evaluation
+The model is used to predict the classe variable in train2 dataset.
+
+```{r}
+predictions <- predict(rf_model, train2)
+confusionMatrix(train2$classe,predictions)
+```
+So the accuracy of this model in predicting the "classe" variable was 99.78%. Hence, the out of sample error is 0.22%
+
+#Building the final model with entire training data
+```{r,cache=TRUE}
+control <- trainControl(method="cv", number=3, verboseIter = F)
+
+final_model <- train(classe ~ . , data=train1 , method = "rf", trControl=control)
+final_model$finalModel
+```
+
+#Making predictions for the test data
+```{r}
+columns <- colnames(train_df)
+columns <- columns[-54]
+test_df <- test_df[,columns]
+
+test_predictions <- predict(final_model,test_df)
+test_predictions
+```
+
+
+
+
